@@ -76,7 +76,7 @@ namespace NLog.Discord
                 string level = string.Empty;
                 switch (logEvent.Level.Ordinal)
                 {
-                    case 0: level = "Trace message"; break;
+                    case 0: level = ":page_with_curl: Trace message"; break;
                     case 1: level = ":gear: Debug message"; break;
                     case 2:
                         level = ":information_source: Info";
@@ -97,13 +97,12 @@ namespace NLog.Discord
                 }                
                 embed.WithTitle($"{level} in {logEvent.LoggerName}");
                 if (logEvent.Exception != null) embed.AddField("Exception", logEvent.Exception.Message);
-
-                webhook.SendMessageAsync(embeds: new Embed[1] { embed.Build() }).Wait();
+                embeds = new[] { embed.Build() };
             }
 
             if (DoMentions) text += " " + Mention;
 
-            if (logEvent.Exception.StackTrace != null)
+            if (logEvent.Exception != null && logEvent.Exception.StackTrace != null)
             {
                 using (var stream = new MemoryStream())
                 {
