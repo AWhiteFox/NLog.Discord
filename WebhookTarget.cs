@@ -51,58 +51,59 @@ namespace NLog.Discord
             UseEmbeds = true;
             DoMentions = false;
             Mention = "@everyone";
+            Layout = "${message}";
         }
 
         protected override void Write(LogEventInfo logEvent)
         {
             var webhook = GetWebhook();
-            string text = string.Empty;
+            bool hasException = logEvent.Exception != null;
+
+            string text = null;
             IEnumerable<Embed> embeds = null;
 
-            if (!UseEmbeds)
-            {
-                logEvent.Exception = null;
-                text = this.Layout.Render(logEvent);
-            }
-            else
+            if (UseEmbeds)
             {
                 var embed = new EmbedBuilder
                 {
                     Timestamp = logEvent.TimeStamp,
-                    Description = logEvent.Message
+                    Description = this.Layout.Render(logEvent)
                 };
                 embed.WithFooter($"sec: {logEvent.TimeStamp.Second} ms: {logEvent.TimeStamp.Millisecond}");
 
-                string level = string.Empty;
                 switch (logEvent.Level.Ordinal)
                 {
-                    case 0: level = ":page_with_curl: Trace message"; break;
-                    case 1: level = ":gear: Debug message"; break;
+                    case 0: embed.WithTitle($":page_with_curl: Trace message in {logEvent.LoggerName}"); break;
+                    case 1: embed.WithTitle($":gear: Debug message in {logEvent.LoggerName}"); break;
                     case 2:
-                        level = ":information_source: Info";
+                        embed.WithTitle($":information_source: Info in {logEvent.LoggerName}");
                         embed.Color = new Color(3901635);
                         break;
                     case 3:
-                        level = ":warning: Warning";
+                        embed.WithTitle($":warning: Warning in {logEvent.LoggerName}");
                         embed.Color = new Color(16763981);
                         break;
                     case 4:
-                        level = ":x: Error";
+                        embed.WithTitle($":x: Error in {logEvent.LoggerName}");
                         embed.Color = new Color(14495300);
                         break;
                     case 5:
-                        level = ":stop_sign: Fatal Error";
+                        embed.WithTitle($":stop_sign: Fatal Error in {logEvent.LoggerName}");
                         embed.Color = new Color(9319490);
                         break;
-                }                
-                embed.WithTitle($"{level} in {logEvent.LoggerName}");
-                if (logEvent.Exception != null) embed.AddField("Exception", logEvent.Exception.Message);
+                }
+
+                if (hasException) embed.AddField("Exception", logEvent.Exception.Message);
                 embeds = new[] { embed.Build() };
             }
+            else
+            {
+                text = this.Layout.Render(logEvent);
+            }
 
-            if (DoMentions) text += " " + Mention;
+            if (DoMentions) text += Mention;
 
-            if (logEvent.Exception != null && logEvent.Exception.StackTrace != null)
+            if (hasException)
             {
                 using (var stream = new MemoryStream())
                 {
@@ -114,24 +115,15 @@ namespace NLog.Discord
                         stream.Seek(0, SeekOrigin.Begin);
                         webhook.SendFileAsync(stream, "stack-trace.txt", text, embeds: embeds).Wait();
                     }
-                    finally
-                    {
-                        writer.Dispose();
-                    }
+                    finally { writer.Dispose(); }
                 }
             }
-            else
-            {
-                webhook.SendMessageAsync(text, embeds: embeds).Wait();
-            }
+            else webhook.SendMessageAsync(text, embeds: embeds).Wait();
         }
 
         private DiscordWebhookClient GetWebhook()
         {
-            if (webhook == null)
-            {
-                webhook = new DiscordWebhookClient(this.Id, this.Token);
-            }
+            if (webhook == null) webhook = new DiscordWebhookClient(this.Id, this.Token);
             return webhook;
         }
     }
